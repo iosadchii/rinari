@@ -192,14 +192,12 @@ test, then try to jump to the related test using
 jumping between errors and source code.  With optional prefix
 argument allows editing of the test command arguments."
   (interactive "P")
-  (or (string-match "test" (or (ruby-add-log-current-method)
+  (or (rinari-test-function-name)
+      (string-match "test" (or (ruby-add-log-current-method)
 			       (file-name-nondirectory (buffer-file-name))))
       (rinari-find-test))
-  (let* ((funname (ruby-add-log-current-method))
-	 (fn (and funname
-		  (string-match "#\\(.*\\)" funname)
-		  (match-string 1 funname)))
-	 (path (buffer-file-name))
+  (let* ((fn (rinari-test-function-name))
+         (path (buffer-file-name))
          (ruby-options (list "-I" (expand-file-name "test" (rinari-root)) path))
 	 (default-command (mapconcat
                            'identity
@@ -210,6 +208,18 @@ argument allows editing of the test command arguments."
                     default-command)))
     (if path (ruby-compilation-run command ruby-options)
       (message "no test available"))))
+
+(defun rinari-test-function-name()
+  (save-excursion
+    (if (re-search-backward (concat "^[ \t]*\\(def\\|test\\)[ \t]+"
+                                    "\\([\"'].*?[\"']\\|" ruby-symbol-re "*\\)"
+                                    "[ \t]*") nil t)
+        (let ((name (match-string 2)))
+          (if (string-match "^[\"']\\(.*\\)[\"']$" name)
+              (replace-regexp-in-string " +" "_" (match-string 1 name))
+            (if (string-match "^test" name)
+              name))))))
+
 
 (defun rinari-console (&optional edit-cmd-args)
   "Runs a Rails console in a compilation buffer, with command history
@@ -237,8 +247,8 @@ argument allows editing of the console command arguments."
     (run-ruby command)
     (save-excursion
       (set-buffer "*ruby*")
-      (set (make-local-variable 'inf-ruby-first-prompt-pattern) "^>> ")
-      (set (make-local-variable 'inf-ruby-prompt-pattern) "^>> ")
+      (set (make-local-variable 'inf-ruby-prompt-pattern) "^\\([a-zA-Z0-9.\-]+ :[0-9]+ >\\|>>\\) ")
+      (set (make-local-variable 'inf-ruby-first-prompt-pattern) inf-ruby-prompt-pattern)
       (rinari-launch))))
 
 (defun rinari-sql ()
@@ -303,7 +313,7 @@ argument allows editing of the server command arguments."
                       (read-string "Run Ruby: " (concat command " "))
                     command))
 
-    (ruby-compilation-run command))
+    (ruby-compilation-run command nil "server"))
   (rinari-launch))
 
 (defun rinari-web-server-restart (&optional edit-cmd-args)
